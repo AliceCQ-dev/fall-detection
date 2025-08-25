@@ -1,0 +1,1 @@
+For more information, pls take reference to our thesis project report: Your AI GuardianAngel: A Deep Learning-Based Fall Detection System.
