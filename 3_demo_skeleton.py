@@ -201,7 +201,7 @@ print(cnn)
 # In[ ]:
 
 
-frame_reader = VideoReader(os.path.join(data_path, 'FALL_24.avi'), 'demo', frame_start = 300, frame_interval=2)
+frame_reader = VideoReader(os.path.join(data_path, 'FALL_26.avi'), 'demo', frame_start = 0, frame_interval=2)
 
 
 for img in frame_reader:
@@ -228,42 +228,15 @@ for img in frame_reader:
         with torch.no_grad():
             predict = cnn(skeleton_tensor)
 
-        action_id = int(torch.argmax(predict,dim=1).cpu().detach().item())
+        print('predicted fall probability: ', predict[:,0])
+        possible_rate = predict[:,0].detach().cpu().numpy()[0]
+        
+        # possible_rate = possible_rate.detach().cpu().numpy()[0]
 
-        possible_rate = 0.6*predict[:,action_id] + 0.4*(crown_proportion-1)
-        print(possible_rate)
-
-        possible_rate = possible_rate.detach().cpu().numpy()[0]
-
-        if possible_rate > 0.55:
+        if possible_rate >= 0.50:
             pose_action = 'fall'
-            if possible_rate > 1:
-                possible_rate = 1
-            action_fall = possible_rate
-            action_normal = 1-possible_rate
         else:
             pose_action = 'normal'
-            if possible_rate >= 0.5:
-                action_fall = 1-possible_rate
-                action_normal = possible_rate
-            else:
-                action_fall = possible_rate
-                action_normal = 1 - possible_rate
-
-        # if pose_action == 'fall':
-        #     cv2.rectangle(test_img, (int(pose_bbox[0]*1.1), int(pose_bbox[1]*1.1)),\
-        #                     (int((pose_bbox[0] + pose_bbox[2])*1.1), int((pose_bbox[1] + pose_bbox[3])*1.1)), (0, 0, 255), thickness=3)
-        #     cv2.putText(test_img, 'state: {}'.format(pose_action), (pose_bbox[0], pose_bbox[1] - 16),\
-        #                 cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 255))
-        # else:
-        #     cv2.rectangle(test_img, (int(pose_bbox[0]*1.1), int(pose_bbox[1]*1.1)),\
-        #                     (int((pose_bbox[0] + pose_bbox[2])*1.1), int((pose_bbox[1] + pose_bbox[3])*1.1)), (0, 255, 0))
-        #     cv2.putText(test_img, (int(pose_bbox[0]*1.1), int(pose_bbox[1]*1.1) - 16),\
-        #                 cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 255, 0))
-
-        # img_new = cv2.addWeighted(orig_img, 0.6, test_img, 0.4, 0)
-        # cv2.putText(test_img, pose_action, (5, 35), cv2.FONT_HERSHEY_COMPLEX, 0.75, (0, 0, 255), 1)
-        # cv2.putText(test_img, pose_action, (3,15), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 255), 1)
         
         test_img = put_text_with_background(test_img, pose_action, (3, 15))
         
