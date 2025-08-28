@@ -42,6 +42,8 @@ def get_bbox(keypoints):
     bbox = cv2.boundingRect(found_keypoints)
     return bbox
 
+import cv2
+import os
 
 class VideoReader(object):
     def __init__(self, file_name, code_name, frame_start=300, frame_interval=2):
@@ -49,6 +51,7 @@ class VideoReader(object):
         self.code_name = str(code_name)
         self.frame_interval = frame_interval  # 帧间隔，2表示每隔2帧取1帧
         self.frame_start = frame_start
+
         try:  # OpenCV needs int to read from webcam
             self.file_name = int(file_name)
         except ValueError:
@@ -57,7 +60,8 @@ class VideoReader(object):
     def __iter__(self):
         self.cap = cv2.VideoCapture(self.file_name)
         self.frame_index = self.frame_start  # 初始化起始帧
-
+        self.total_frame = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
         if not self.cap.isOpened():
             raise IOError('Video {} cannot be opened'.format(self.file_name))
         return self
@@ -65,7 +69,7 @@ class VideoReader(object):
     def __next__(self):
         while True:
             was_read, img = self.cap.read()
-            if not was_read:
+            if not was_read or self.frame_index>self.total_frame:
                 raise StopIteration
             
             # cv2.putText(img, self.code_name, (5, 35),
@@ -184,16 +188,10 @@ cnn.eval()
 print(cnn)
 
 
-# In[ ]:
-
-
-frame_reader = VideoReader(os.path.join(data_path, 'FALL_24.avi'), 'demo', frame_start = 300, frame_interval=2)
-
-
-# In[ ]:
-
+frame_reader = VideoReader(os.path.join(data_path, 'FALL_26.avi'), 'demo', frame_start = 0, frame_interval=2)
 
 for img in frame_reader:
+        
     test_img = img.copy()
     
     candidate, subset = openpose(img)
@@ -218,28 +216,28 @@ for img in frame_reader:
         skeleton_tensor = torch.tensor(skeleton_img).float().unsqueeze(0).to(DEVICE)  # 明确指定为float类型
         with torch.no_grad():
             predict = cnn(skeleton_tensor)
+        print('predicted fall probability: ', predict[:,0])
+        possible_rate = predict[:,0].detach().cpu().numpy()[0]
+        
+        # action_id = int(torch.argmax(predict,dim=1).cpu().detach().item())
+        # possible_rate = 0.6*predict[:,action_id] + 0.4*(crown_proportion-1)
+        # print('经过代价敏感处理：',possible_rate)
+        # possible_rate = possible_rate.detach().cpu().numpy()[0]
 
-        action_id = int(torch.argmax(predict,dim=1).cpu().detach().item())
-
-        possible_rate = 0.6*predict[:,action_id] + 0.4*(crown_proportion-1)
-        print(possible_rate)
-
-        possible_rate = possible_rate.detach().cpu().numpy()[0]
-
-        if possible_rate > 0.55:
+        if possible_rate >= 0.50:
             pose_action = 'fall'
-            if possible_rate > 1:
-                possible_rate = 1
-            action_fall = possible_rate
-            action_normal = 1-possible_rate
+            # if possible_rate > 1:
+            #     possible_rate = 1
+            # action_fall = possible_rate
+            # action_normal = 1-possible_rate
         else:
             pose_action = 'normal'
-            if possible_rate >= 0.5:
-                action_fall = 1-possible_rate
-                action_normal = possible_rate
-            else:
-                action_fall = possible_rate
-                action_normal = 1 - possible_rate
+            # if possible_rate >= 0.5:
+            #     action_fall = 1-possible_rate
+            #     action_normal = possible_rate
+            # else:
+            #     action_fall = possible_rate
+            #     action_normal = 1 - possible_rate
 
         # if pose_action == 'fall':
         #     cv2.rectangle(test_img, (int(pose_bbox[0]*1.1), int(pose_bbox[1]*1.1)),\
@@ -253,7 +251,8 @@ for img in frame_reader:
         #                 cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 255, 0))
 
         # img_new = cv2.addWeighted(orig_img, 0.6, test_img, 0.4, 0)
-        cv2.putText(test_img, 'state: {}'.format(pose_action), (5, 35), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 0, 255))
+        # cv2.putText(test_img, 'state: {}'.format(pose_action), (5, 35), cv2.FONT_HERSHEY_COMPLEX, 1, (0, 0, 255))
+        cv2.putText(test_img, 'Pred. Fall P.: {:.4f}, Pred. State: {}'.format(possible_rate, pose_action), (5, 50), cv2.FONT_HERSHEY_COMPLEX, 0.5, (0, 0, 255))
         cv2.imshow('DEMO', test_img)
 
         cv2.waitKey(0)  # 等待任意键按下，才会继续执行下一行
